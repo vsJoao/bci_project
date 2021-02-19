@@ -1,27 +1,33 @@
 from classes.datasets import Subject
+from classes.datasets import Headset
 from scipy.io import loadmat
-from utils.epoching import sort_montage_eog
 import numpy as np
 import mne
 import os
 
 
-# Cria uma classe especializada para tratar dos sujeitos da ic bci competition
+# Cria uma classe especializada para tratar dos sujeitos da iv bci competition
 class IVBCICompetitionSubject(Subject):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
-    def set_fif_recordings(self, filename, data_type="train"):
-        sbj = self.sbj_info["folder_name"]
-        ch_names = self.sbj_info["ch_names"]
+    def __init__(self, headset: Headset, classes: dict, foldername: str, time_configs):
+        super().__init__(headset, classes, foldername, time_configs)
+
+    def _create_fif_files_from_original_data(self):
+        self._save_fif(f"{self.foldername}T.mat", data_type="train")
+        self._save_fif(f"{self.foldername}E.mat", data_type="test")
+
+    # Formata o banco de dados do formato originalmente disponível para o formato .fif
+    def _save_fif(self, filename, data_type="train"):
+        sbj = self.foldername
+        ch_names = self.headset.ch_names
 
         try:
             local = os.path.join("subject_files", sbj, "original_data", filename)
             file = loadmat(local)
             data = file['data']
-            print("{} carregado com sucesso".format(sbj))
+            print(f"{sbj} carregado com sucesso")
         except IOError:
-            print('Não foi possível carregar {}'.format(sbj))
+            print(f"Não foi possível carregar {sbj}")
             return
 
         for i in range(3, 9):  # Carrega as 6 (das 9) runs de interesse de cada pessoa
@@ -29,13 +35,12 @@ class IVBCICompetitionSubject(Subject):
             x = data[0][i][0][0][0].copy().transpose()
             trial = data[0][i][0][0][1].copy()
             y = data[0][i][0][0][2].copy()
-            clas = data[0][i][0][0][4][0].copy()
             sfreq = data[0][i][0][0][3][0][0].copy()
 
             # Mapeia os eletrodos como eeg ou eog
             chanel = ['eeg'] * 22 + ['eog'] * 3
             # Carrega a montagem dos sensores:
-            mnt = sort_montage_eog(ch_names)
+            mnt = self.headset.montage
             # Cria a informação de todos os arquivos
             info = mne.create_info(ch_names=ch_names,
                                    sfreq=sfreq,

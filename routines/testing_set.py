@@ -36,11 +36,9 @@ def testing_data_routine():
             for sbj_idx in range(n_runs):
                 # Carrega o arquivo raw e o conjunto de eventos referentes a ele
                 raw, eve = utils.pick_file(raw_fif_folder, sbj_name, sbj_idx + 1)
-
                 # Separa o arquivo em epocas e aplica o ica
                 x_temp = utils.epoch_raw_data(
-                    raw, eve, e_dict, t_start, t_end, ica_start, ica_end
-                )
+                    raw, eve, e_dict, t_start, t_end, ica_start, ica_end)
 
                 # Tenta adicionar a epoca atual ao dicionário, se não conseguir, reinicia o dicionário
                 for i in e_classes:
@@ -60,7 +58,7 @@ def testing_data_routine():
             f = dict()
 
             for k, (i, j) in product(X, combinations(e_classes, 2)):
-                # k - Classes do conjunto de dados X
+                # k - Classes do conjunto de dados X deste sujeito
                 # i, j - Todas as combinações de CSP possíveis a partir das classes em e_dict
                 if k not in e_classes:
                     continue
@@ -70,7 +68,7 @@ def testing_data_routine():
 
                     # Cálculo dos vetores de características utilizando a corrente classe de W e de X
                     f_temp = np.append(
-                        Wfb[f'{i}{j}'].csp_feature(X[k].data[:, :, n]).transpose(),
+                        Wfb[f"{i}{j}"].fbcsp_feature(X[k].data[:, :, n]).transpose(),
                         [[k_id for k_id in e_dict if e_dict[k_id] == k]], axis=1
                     )
 

@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 
 def artifact_remove(
-        raw, n_comp=22, print_all=False, print_psd=False, print_res=False, print_overlay=False, print_ICA=False):
+        raw, n_comp=22, print_all=False, print_psd=False, print_res=False, print_overlay=False, print_ica=False):
     """ Realiza a decomposição do sinal e remove os artefatos
 
     Parameters
@@ -31,7 +31,7 @@ def artifact_remove(
         Imprime uma mensagem informando se havia componente a ser limpo
     print_overlay: bool
         Imprime um grafico com os sinais sobrepostos mostrando o resultado da limpeza
-    print_ICA: bool
+    print_ica: bool
         Imprime os gráficos das componentes intependentes
 
     """
@@ -43,7 +43,7 @@ def artifact_remove(
         print_psd = True
         print_res = True
         print_overlay = True
-        print_ICA = True
+        print_ica = True
 
     # Aplicação do ICA e sepação das componentes
     
@@ -59,7 +59,7 @@ def artifact_remove(
     ica.fit(raw_filt)
     
     # Imprime as componentes estimadas
-    if print_ICA is True:
+    if print_ica is True:
         ica.plot_sources(raw_filt)
         plt.savefig('ica_sources')
     

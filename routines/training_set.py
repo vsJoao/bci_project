@@ -24,13 +24,12 @@ def training_data_routine():
         features_filepath = os.path.join(features_train_folder, f'{sbj_name}_features.npy')
 
         if os.path.exists(epoch_filepath):
-            X = Epochs.dict_from_filepath(epoch_filepath)
+            x = Epochs.dict_from_filepath(epoch_filepath)
 
         else:
-            X = dict()
+            x = dict()
 
             for sbj_idx in range(n_runs):
-
                 # Carrega o arquivo raw e o conjunto de eventos referentes a ele
                 raw, eve = utils.pick_file(raw_fif_folder, sbj_name, sbj_idx + 1)
                 # Do arquivo raw, retorna as epocas, após ter sido passado pelo processo de ICA
@@ -40,27 +39,27 @@ def training_data_routine():
                 # Salva os dados epocados no dicionário de épocas X
                 for i in e_classes:
                     if sbj_idx == 0:
-                        X[i] = x_temp[i]
+                        x[i] = x_temp[i]
                     else:
-                        X[i].add_epoch(x_temp[i].data)
+                        x[i].add_epoch(x_temp[i].data)
 
-            utils.save_epoch(epoch_filepath, X)
+            utils.save_epoch(epoch_filepath, x)
             del x_temp, raw, eve
 
         # %% ============== Calculo das matrizes de projeção Espacial =====================
 
         if os.path.exists(csp_filepath):
-            W = np.load(csp_filepath, allow_pickle=True).item()
+            w = np.load(csp_filepath, allow_pickle=True).item()
 
         else:
             # Calcula-se a matriz se projeção espacial de um único sujeito
             print('Calculo das matrizes de projeção Espacial do sujeito {}'.format(sbj_name))
-            W = dict()
+            w = dict()
 
             for i, j in combinations(e_classes, 2):
-                W[f'{i}{j}'] = FBCSP(X[i], X[j], m=m, filterbank=fb_freqs)
+                w[f'{i}{j}'] = FBCSP(x[i], x[j], m=m, filterbank=fb_freqs)
 
-            utils.save_csp(csp_filepath, W)
+            utils.save_csp(csp_filepath, w)
 
         # ====================== Construção do vetor de caracteristicas ==================
 
@@ -72,8 +71,8 @@ def training_data_routine():
             # Realiza o CSP e extrai as caracteristicas entre todas as classes possíveis
             for i, j in combinations(e_classes, 2):
                 # Executa a extração das características em todas as combinações de classes
-                features[f'{i}{j}'] = W[f'{i}{j}'].generate_train_features(
-                    X[i], X[j], dict(zip(e_dict.values(), e_dict.keys()))
+                features[f'{i}{j}'] = w[f'{i}{j}'].generate_features_from_epochs_one_vs_one(
+                    x[i], x[j], dict(zip(e_dict.values(), e_dict.keys()))
                 )
 
             utils.save_csp(features_filepath, features)

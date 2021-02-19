@@ -3,14 +3,14 @@ import scipy.linalg as li
 
 
 # Calculo da matriz de covariância espacial
-def cov_esp(E):
-    C = np.dot(E, E.transpose())
-    C = C / (np.dot(E, E.transpose()).trace())
-    return C
+def cov_esp(e):
+    c = np.dot(e, e.transpose())
+    c = c / (np.dot(e, e.transpose()).trace())
+    return c
 
 
-def eig_sort(X, cresc=False):
-    value, vector = li.eig(X)
+def eig_sort(x, cresc=False):
+    value, vector = li.eig(x)
     value = np.real(value)
     vector = np.real(vector)
 

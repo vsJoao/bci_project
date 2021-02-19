@@ -35,7 +35,7 @@ data = file['data']
 **data[id1][id2][id3][id4][id5][id6][id7]**
 
 Cada um dos indices desse array são referentes a uma informação do dataset:
-* id1: Indexa todo o conjunto de informações deve ser deixado como zero
+* id1: Indexa o conjunto de informações e deve ser deixado como zero
 * id2: Indexa o número de um dos 9 conjuntos de testes que foram realizados (0-8)
 * id3: É um indice apenas para reunir os próximos tipos de dados (deve ser deixado como zero)
 * id4: É um indice apenas para reunir os próximos tipos de dados (deve ser deixado como zero)

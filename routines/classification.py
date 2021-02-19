@@ -67,11 +67,11 @@ def testing_set_classification(sbj_id="A01"):
     )
 
     confusion = confusion_df.to_numpy()
-    confusion_percent = confusion / 72
     pe = np.trace(confusion) / np.sum(confusion)
     po = np.dot(np.sum(confusion, axis=0), np.sum(confusion, axis=1)) / (np.sum(confusion)**2)
     kappa = (pe - po) / (1 - po)
 
+    # confusion_percent = confusion / 72
     # ax = sns.heatmap(confusion_df, cmap="Blues", annot=confusion_percent, linewidths=1.5)
     # plt.yticks(va="center")
     # plt.xticks(va="center")
