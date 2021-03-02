@@ -1,47 +1,16 @@
-from abc import ABC, abstractmethod
+from classes.abstracts import OneVsOneClassificator
 import os
 import _pickle as pickle
 from sklearn import svm
+import numpy as np
 from scipy.stats import mode
-
-
-class OneVsOneClassificator(ABC):
-    def __init__(self, subject_name: str, train_features: dict):
-        self.subject_name = subject_name
-        self.classifier_models = dict()
-        self.folderpath = os.path.join("subject_files", subject_name, "classifiers", "one_vs_one")
-        os.makedirs(self.folderpath, exist_ok=True)
-
-        self._set_classsifiers(train_features)
-        assert self.classifier_models
-
-    @property
-    @abstractmethod
-    def classifier_method_name(self) -> str:
-        pass
-
-    @abstractmethod
-    def _set_classsifiers(self, train_features):
-        pass
-
-    @abstractmethod
-    def predict_feature(self, feature_dict: dict) -> int:
-        pass
-
-    @classmethod
-    @abstractmethod
-    def load_from_subjectname(cls, sbj_name):
-        pass
-
-    def save_classifier(self):
-        with open(os.path.join(self.folderpath, self.classifier_method_name+".pkl"), "wb") as file:
-            pickle.dump(self, file)
 
 
 class OneVsOneLinearSVM(OneVsOneClassificator):
     @classmethod
     def load_from_subjectname(cls, sbj_name):
-        with open(os.path.join("subject_files", sbj_name, "classifiers", "one_vs_one", "linear_svm.pkl"), "rb") as file:
+        file_path = os.path.join("subject_files", sbj_name, "classifiers", "one_vs_one", "linear_svm.pkl")
+        with open(file_path, "rb") as file:
             classifier = pickle.load(file)
         return classifier
 
@@ -66,3 +35,26 @@ class OneVsOneLinearSVM(OneVsOneClassificator):
 
         res, _ = mode(prediction)
         return int(res)
+
+    def run_testing_classifier(self):
+        features_test_list = self.get_subject_test_features()
+        compare = list()
+
+        inverted_clas_dict = dict(zip(self.subject.classes.values(), self.subject.classes.keys()))
+        real_classes = list()
+        prediction_list = list()
+
+        for feature in features_test_list:
+            res = self.predict_feature(feature["feature"])
+            compare.append(self.subject.classes[res] == feature["class"])
+
+            real_classes.append(inverted_clas_dict[feature["class"]])
+            prediction_list.append(res)
+
+        hit_rate = np.mean(compare)
+
+        return {
+            "hit_rate": hit_rate,
+            "real_classes": real_classes,
+            "predicted_classes": prediction_list
+        }

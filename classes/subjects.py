@@ -1,5 +1,5 @@
-from classes.datasets import Subject
-from classes.datasets import Headset
+from classes.abstracts import Subject
+from classes.data_configuration import Headset
 from scipy.io import loadmat
 import numpy as np
 import mne

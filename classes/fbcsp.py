@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
 from utils import csp
-from classes.datasets import Epochs
+from classes.data_configuration import Epochs
 import os
 import _pickle as pickle
 
@@ -11,6 +11,8 @@ class FBCSP:
 
     Uma instancia será um modelo que conterá as matrizes de projeção espacial
     de um conjunto de sinais de duas classes diferentes dado um banco de filtros.
+    Essa classe segue a ideia de utilização do FBCSP e realiza a separação de
+    dados de apenas duas classes diferentes
 
     Atributes
     ---------
@@ -90,11 +92,11 @@ class FBCSP:
         return w_dict
 
     @classmethod
-    def _filt(cls, x: np.ndarray, freq_band: list, fs: int, ordem=6, rs=20):
+    def _filt(cls, x: np.ndarray, freq_band: list, fs: int, order=6, rs=20):
         from scipy import signal
 
         sos = signal.iirfilter(
-            N=ordem, Wn=freq_band, rs=rs, btype='bandpass',
+            N=order, Wn=freq_band, rs=rs, btype='bandpass',
             output='sos', fs=fs, ftype='cheby2'
         )
 
@@ -167,7 +169,7 @@ class FBCSP:
 
         return f
 
-    def generate_features_from_epochs_one_vs_one(self, epc1: Epochs, epc2: Epochs, e_dict: dict) -> np.ndarray:
+    def generate_features_from_epochs(self, epc1: Epochs, epc2: Epochs, e_dict: dict) -> np.ndarray:
         """ Gera um conjunto de características dos dois conjuntos de dados
 
         O conjunto de dados passados, é ideal que seja o mesmo anteriormente utilizado
@@ -191,9 +193,10 @@ class FBCSP:
             definido no dicionário.
 
         """
-        # Retira as características do primeiro conjunto
+
         e_dict = dict(zip(e_dict.values(), e_dict.keys()))
 
+        # Retira as características do primeiro conjunto
         f1 = self.fbcsp_feature(epc1.data[:, :, 0])
         for i in range(1, epc1.n_trials):
             f1 = np.append(f1, self.fbcsp_feature(epc1.data[:, :, i]), axis=1)
@@ -203,8 +206,7 @@ class FBCSP:
         for i in range(1, epc2.n_trials):
             f2 = np.append(f2, self.fbcsp_feature(epc2.data[:, :, i]), axis=1)
 
-        f1 = f1.transpose()
-        f2 = f2.transpose()
+        f1, f2 = f1.transpose(), f2.transpose()
 
         f = np.append(
             np.append(f1, np.tile(e_dict[epc1.classe], (f1.shape[0], 1)), axis=1),

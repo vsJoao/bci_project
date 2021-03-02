@@ -1,174 +1,14 @@
-"""
-Conjunto de classes para organizar os dados em formatos reconhecidos pelo banco de dados
-"""
-
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from utils.artifact_remove import artifact_remove
-from classes.classifications import OneVsOneClassificator, OneVsOneLinearSVM
-import numpy as np
-import _pickle as pickle
 import os
-import mne
+import pickle as pickle
+from abc import ABC, abstractmethod
 from itertools import combinations
 
+import mne
+import numpy as np
 
-class Epochs:
-    def __init__(self, x, classe, subject_name, data_type=None) -> None:
-        # Epoca original de dados
-        self.data = x
-        # Classe do conjunto de epocas
-        self.classe = classe
-        # Nome do sujeito ao qual esta instância está associada
-        self.subject_name = subject_name
-        # data_type
-        self.data_type = data_type
-        # Pasta onde ficará este conjunto de epocas
-        self.epc_folderpath = os.path.join("subject_files", subject_name, f"epochs_{data_type}")
-
-        # bloco para verificar principalmente se há mais de uma matriz de epocas
-        try:
-            self.n_ch = self.data.shape[0]
-            self.n_samp = self.data.shape[1]
-            self.n_trials = self.data.shape[2]
-        except IndexError:
-            self.n_ch = self.data.shape[0]
-            self.n_samp = self.data.shape[1]
-            self.n_trials = 1
-            self.data = self.data.reshape(self.n_ch, self.n_samp, 1)
-
-    # Adiciona uma epoca no conjunto original de dados
-    def add_epoch(self, new_data: Epochs):
-        self.data = np.append(self.data, new_data.data, axis=2)
-        try:
-            self.n_trials += new_data.data.shape[2]
-        except IndexError:
-            self.n_trials += 1
-
-    def save_epoch(self):
-        try:
-            if not os.path.exists(self.epc_folderpath):
-                os.makedirs(self.epc_folderpath)
-
-            with open(os.path.join(self.epc_folderpath, f"{self.classe}_epoch.pkl"), "wb") as file:
-                pickle.dump(self, file, -1)
-
-        except IOError as e:
-            raise IOError(f"Não foi possível salvar a época: {e}")
-
-    @classmethod
-    def dict_from_subject_name(cls, sbj_name, data_type) -> dict:
-        epochs = dict()
-        path = os.path.join("subject_files", sbj_name, f"epochs_{data_type}")
-        files = sorted(os.listdir(path))
-        for filename in files:
-            with open(os.path.join(path, filename), "rb") as file:
-                epoch = pickle.load(file)
-                epochs[epoch.classe] = epoch
-        return epochs
-
-
-class Headset:
-    def __init__(self, name, ch_names, sfreq):
-        """
-        Inicialização e criação de uma nova instância de um headset, adotando um nome, um array com os nomes dos canais
-        disponíveis nesse headset e a frequência de amostragem.
-
-        Parameters
-        ----------
-        name
-        ch_names
-        sfreq
-        """
-        self.name = name
-        self.ch_names = ch_names
-        self.sfreq = sfreq
-        self.montage = self._set_montage()
-
-    @classmethod
-    def from_headset_name(cls, name: str):
-        if not name.endswith(".pkl"):
-            name += ".pkl"
-
-        with open(f"headsets/{name}", "rb") as file:
-            return pickle.load(file)
-
-    # Cria um objeto de montagem de acordo com os canais informados
-    def _set_montage(self):
-        """
-        Gera um objeto de montagem (MNE tools) para o headset da instância de acordo com os dados passados na iniciali-
-        zação.
-        """
-        dataset_ch_names = self.ch_names
-
-        # Carrega o arquivo
-        file = np.loadtxt('headsets/plotting_1005.txt', dtype={
-            'names': ['ch', 'x', 'y', 'z'],
-            'formats': ['S6', 'f4', 'f4', 'f4']
-        })
-
-        # Cria a variavel que ira guardar o nome dos canais
-        ch_nums = len(file)
-        all_ch_names = []
-        coord = np.zeros([342, 3])
-
-        # Passa pelo arquivo linha por linha
-        for ii, jj in enumerate(file):
-            # Converte a primeira coluna para string e salva na lista
-            all_ch_names.append(file[ii][0].decode('ascii'))
-
-            # Converte as coordenadas para float e guarda na matriz
-            for coo in range(3):
-                coord[ii, coo] = float(file[ii][coo + 1]) / 10
-
-        # Salva em uma matriz as posições de cada um dos canais rferenciados em 'names'
-        ch_coord = coord[np.where([all_ch_names[i] in dataset_ch_names for i in range(ch_nums)])[0]]
-
-        # Salva a posição do eletrodo Nasio para referencia
-        nz_pos = coord[np.where([all_ch_names[i] in ['Nz'] for i in range(ch_nums)])[0]].reshape(3)
-        # Salva a posição do eletrodo lpa para referencia
-        lpa_pos = coord[np.where([all_ch_names[i] in ['LPA'] for i in range(ch_nums)])[0]].reshape(3)
-        # Salva a posição do eletrodo rpa para referencia
-        rpa_pos = coord[np.where([all_ch_names[i] in ['RPA'] for i in range(ch_nums)])[0]].reshape(3)
-
-        # Cria o dicionario de montagem do layout
-        ch_pos = {k: v for k, v in zip(dataset_ch_names, ch_coord)}
-
-        # Cria o objeto de montagem do laout
-        montage = mne.channels.make_dig_montage(
-            ch_pos=ch_pos,
-            nasion=nz_pos,
-            lpa=lpa_pos,
-            rpa=rpa_pos
-        )
-
-        return montage
-
-
-class SubjectTimingConfigs:
-    def __init__(self, trial_duration, sample_start, sample_end, ica_start, ica_end,
-                 time_between=None, epc_size=None):
-        """
-        Inicialização de uma instância de configuração das marcações de tempo para as amostras de uma gravação. Esta
-        classe é feita para acompanhar classes filhas de Subject, definindo o padrão das gravações de uma mesma pessoa.
-        Aqui que o tamanho das Epocas são definidas, um conjunto de dados padronizados que servirão para amostrar os
-        dados de uma mesma pessoa.
-
-        Parameters
-        ----------
-        trial_duration: Tempo de duração de um ensaio, marcado pelos eventos de uma gravação
-        sample_start: Instante de tempo do inicio da amostra útil do ensaio
-        sample_end: Instante de tempo do fim da amostra útil do ensaio
-        time_between: Caso seja possível coletar mais de uma epoca de uma amostra, indica o intervalo entre seus inicios
-        epc_size: Tamanho fixo, em segundos, que deve ter uma época desde sujeito
-        """
-        self.trial_duration = trial_duration
-        self.sample_start = sample_start
-        self.sample_end = sample_end
-        self.ica_start = ica_start
-        self.ica_end = ica_end
-        self.time_between = time_between
-        self.epc_size = epc_size or sample_end - sample_start
+from classes.data_configuration import Headset, SubjectTimingConfigs, Epochs
+from utils.artifact_remove import artifact_remove
 
 
 class Subject(ABC):
@@ -249,7 +89,7 @@ class Subject(ABC):
         """
         pass
 
-    def pick_files(self, data_type, recording_id):
+    def pick_fif_files(self, data_type, recording_id):
         """
         Carrega arquivos selecionados pelo identificador e pelo tipo (teste ou treino), deixando os dados pré-carregados
         e os retornando para manipulação
@@ -343,7 +183,7 @@ class Subject(ABC):
         -------
         x: Dicionário de Epocas, sendo uma chave para as Epocas de cada classe
         """
-        raw, eve = self.pick_files(data_type, recording_id)
+        raw, eve = self.pick_fif_files(data_type, recording_id)
 
         # Pré aloca um dicionário que será utilizado como retorno da função
         x = dict()
@@ -408,49 +248,105 @@ class Subject(ABC):
         from classes.fbcsp import FBCSP
         return FBCSP.dict_from_subject_name(self.foldername, set_type)
 
-    def generate_fbcsp_one_vs_one(self, fb_freqs=None, m=2):
+
+class OneVsOneClassificator(ABC):
+    """
+    Uma abstração para modelos de classificadores que funcionem utilizando o padrão 1 vs 1, comparando todas as combina-
+    ções possíveis de classes, mas que pode utilizar diferentes metodologias para a separação dos vetores, como svm,
+    deep learning, multi-layer perceptron, random-forest, KNN...
+    Ainda é preciso criar novos métodos
+    """
+    def __init__(self, subject: Subject):
+        self.subject = subject
+        self.classifier_models = dict()
+        self.folderpath = os.path.join("subject_files", subject.foldername, "classifiers", "one_vs_one")
+
+        self._fit_classifier_models()
+
+    def _fit_classifier_models(self):
+        self.generate_fbcsp()
+        self.generate_subject_train_features()
+        self.generate_subject_test_features()
+
+        train_features = self.get_subject_train_features_as_dict()
+        self._set_classsifiers(train_features)
+        assert self.classifier_models
+
+    def save_classifier(self):
+        """
+        Salva a instancia com as configurações atuais na sua pasta de acordo com o sujeito e o método utilizado
+        """
+        os.makedirs(self.folderpath, exist_ok=True)
+        with open(os.path.join(self.folderpath, self.classifier_method_name+".pkl"), "wb") as file:
+            pickle.dump(self, file)
+
+    def generate_fbcsp(self, fb_freqs=None, m: int = 2):
+        """
+        Gera as matrizes de projeção espacial para separação das classes duas a duas, no modelo de classificação um
+        contra um. Esse formato faz uma combinação dentre todas as classes existentes para ser capaz de separar todas
+        entre elas mesmas.
+
+        Parameters
+        ----------
+        fb_freqs: dict
+            Dicionário contendo todas as bandas de frequencias nas quais o sinal original será filtrado antes de gerar
+            as matrizes de projeção espacial
+        m: int
+            Quantidade de sinais que serão aproveitados na matriz resultante do sinal após sofrer a transformação
+            realizada pelas matrizes de separação.
+        """
         from classes.fbcsp import FBCSP
 
+        # O ideal é que o usuário defina as bandas de frequencia, mas caso não, essas faixas são as pré definidas
+        # para todos os usuários que utilizarem esse algorítmo
         if fb_freqs is None:
             fb_freqs = {1: [8, 12], 2: [12, 16], 3: [16, 20], 4: [20, 24], 5: [24, 28], 6: [28, 32]}
 
-        classes_names = list(self.classes.values())
-        epochs = self.get_epochs_as_dict("train")
+        classes_names = list(self.subject.classes.values())
+        epochs = self.subject.get_epochs_as_dict("train")
 
         for i, j in combinations(classes_names, 2):
             w = FBCSP(epochs[i], epochs[j],
-                      subject_name=self.foldername, fs=self.headset.sfreq, m=m, filterbank=fb_freqs)
+                      subject_name=self.subject.foldername, fs=self.subject.headset.sfreq, m=m, filterbank=fb_freqs)
             w.save_fbcsp(set_type="one_vs_one")
 
-    def generate_subject_train_features_one_vs_one(self):
+    def generate_subject_train_features(self):
         """
-        Gera os vetores de características de treinamento para o formato de classificação um contra um. Os vetores de
-        separação para cada combinação de duas classes diferentes são salvas em arquivos separados dentro da sua res-
-        pectiva pasta.
+        Gera os vetores de características de treinamento para o formato de classificação um contra um.
+        Os vetores de separação para cada combinação de duas classes diferentes são salvas em arquivos separados dentro
+        da sua respectiva pasta.
         """
-        classes_names = list(self.classes.values())
-        w_fbcsp = self.get_fbcsp_dict("one_vs_one")
-        epc_dict = self.get_epochs_as_dict("train")
-        path = os.path.join("subject_files", self.foldername, "features_train", "one_vs_one")
+        classes_names = list(self.subject.classes.values())
+        w_fbcsp = self.subject.get_fbcsp_dict("one_vs_one")
+        epc_dict = self.subject.get_epochs_as_dict("train")
+        path = os.path.join("subject_files", self.subject.foldername, "features_train", "one_vs_one")
 
         for i, j in combinations(classes_names, 2):
-            f = w_fbcsp[f"{i}{j}"].generate_features_from_epochs_one_vs_one(
-                epc_dict[f"{i}"], epc_dict[f"{j}"], self.classes
+            f = w_fbcsp[f"{i}{j}"].generate_features_from_epochs(
+                epc_dict[f"{i}"], epc_dict[f"{j}"], self.subject.classes
             )
             if not os.path.exists(path):
                 os.makedirs(path)
             np.save(os.path.join(path, f"{i}{j}_feature.npy"), f)
 
-    def get_subject_train_features_one_vs_one_as_dict(self):
-        f = dict()
-        path = os.path.join("subject_files", self.foldername, "features_train", "one_vs_one")
+    def get_subject_train_features_as_dict(self):
+        """
+        Carrega o conjunto de treino desse sujeito dentro de um dicionário que utiliza as classes como chaves.
 
-        for i, j in combinations(self.classes.values(), 2):
+        Returns
+        -------
+        f: dict
+            Dicionário de classes de movimento, cada qual com seu conjunto de vetores de características.
+        """
+        f = dict()
+        path = os.path.join("subject_files", self.subject.foldername, "features_train", "one_vs_one")
+
+        for i, j in combinations(self.subject.classes.values(), 2):
             f[f"{i}{j}"] = np.load(os.path.join(path, f"{i}{j}_feature.npy"))
 
         return f
 
-    def generate_set_of_features_for_signal_one_vs_one(self, signal: np.ndarray) -> dict:
+    def generate_set_of_features_for_signal(self, signal: np.ndarray):
         """
         Gera um dicionário de vetores de características para um sinal de classes desconhecida para cada uma das
         combinações de separação de classes.
@@ -463,7 +359,7 @@ class Subject(ABC):
         -------
         f: dicionário com um vetor de características para cada combinação possível de separação de classes.
         """
-        w_fbcsp = self.get_fbcsp_dict("one_vs_one")
+        w_fbcsp = self.subject.get_fbcsp_dict("one_vs_one")
         f = dict()
 
         for clas, w in w_fbcsp.items():
@@ -471,14 +367,14 @@ class Subject(ABC):
 
         return f
 
-    def generate_subject_test_features_one_vs_one(self):
-        epc_dict = self.get_epochs_as_dict("test")
-        path = os.path.join("subject_files", self.foldername, "features_test", "one_vs_one")
+    def generate_subject_test_features(self):
+        epc_dict = self.subject.get_epochs_as_dict("test")
+        path = os.path.join("subject_files", self.subject.foldername, "features_test", "one_vs_one")
         test_features = list()
 
         for clas, epc in epc_dict.items():
             for i in range(epc.n_trials):
-                f_temp = self.generate_set_of_features_for_signal_one_vs_one(epc.data[:, :, i])
+                f_temp = self.generate_set_of_features_for_signal(epc.data[:, :, i])
                 test_features.append({"feature": f_temp, "class": clas})
 
         if not os.path.exists(path):
@@ -486,31 +382,24 @@ class Subject(ABC):
 
         np.save(os.path.join(path, "test_features.npy"), test_features)
 
-    def get_subject_test_features_one_vs_one(self):
-        path = os.path.join("subject_files", self.foldername, "features_test", "one_vs_one")
+    def get_subject_test_features(self):
+        path = os.path.join("subject_files", self.subject.foldername, "features_test", "one_vs_one")
         features = np.load(os.path.join(path, "test_features.npy"), allow_pickle=True)
         return features
 
-    def generate_one_vs_one_svmlinear_classifier(self):
-        train_features = self.get_subject_train_features_one_vs_one_as_dict()
-        classifier = OneVsOneLinearSVM(self.foldername, train_features)
-        classifier.save_classifier()
+    @abstractmethod
+    def predict_feature(self, feature_dict: dict): pass
 
-    def get_one_vs_one_svmlinear_classifier(self) -> OneVsOneLinearSVM:
-        classifier = OneVsOneLinearSVM.load_from_subjectname(self.foldername)
-        return classifier
+    @abstractmethod
+    def _set_classsifiers(self, train_features): pass
 
-    def run_testing_one_vs_one_svmlinear_classifier(self):
-        features_test_list = self.get_subject_test_features_one_vs_one()
-        classifier = self.get_one_vs_one_svmlinear_classifier()
-        compare = list()
+    @classmethod
+    @abstractmethod
+    def load_from_subjectname(cls, sbj_name): pass
 
-        for feature in features_test_list:
-            res = classifier.predict_feature(feature["feature"])
-            compare.append(self.classes[res] == feature["class"])
+    @abstractmethod
+    def run_testing_classifier(self): pass
 
-        hit_rate = np.mean(compare)
-
-        return {
-            "hit_rate": hit_rate
-        }
+    @property
+    @abstractmethod
+    def classifier_method_name(self) -> str: pass

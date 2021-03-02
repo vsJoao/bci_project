@@ -71,7 +71,7 @@ def training_data_routine():
             # Realiza o CSP e extrai as caracteristicas entre todas as classes possíveis
             for i, j in combinations(e_classes, 2):
                 # Executa a extração das características em todas as combinações de classes
-                features[f'{i}{j}'] = w[f'{i}{j}'].generate_features_from_epochs_one_vs_one(
+                features[f'{i}{j}'] = w[f'{i}{j}'].generate_features_from_epochs(
                     x[i], x[j], dict(zip(e_dict.values(), e_dict.keys()))
                 )
 
