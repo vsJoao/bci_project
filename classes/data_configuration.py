@@ -10,6 +10,9 @@ import mne
 
 
 class Epochs:
+    """
+    Esta classe agrupa um conjunto de épocas de um sujeito para uma mesma classe de sinal
+    """
     def __init__(self, x, classe: str, subject_name: str, data_type=None) -> None:
         # Epoca original de dados
         self.data = x
@@ -52,6 +55,11 @@ class Epochs:
 
     @classmethod
     def dict_from_subject_name(cls, sbj_name, data_type) -> dict:
+        """
+        Carrega todas as epocas do conjunto de dados selecionados (teste ou treino)
+        """
+        assert data_type in ["test", "train"]
+
         epochs = dict()
         path = os.path.join("subject_files", sbj_name, f"epochs_{data_type}")
         files = sorted(os.listdir(path))
@@ -126,6 +134,10 @@ class Headset:
 
         # Salva em uma matriz as posições de cada um dos canais rferenciados em 'names'
         ch_coord = coord[np.where([all_ch_names[i] in dataset_ch_names for i in range(ch_nums)])[0]]
+
+        if ch_coord.shape[0] < len(dataset_ch_names):
+            for i in range(len(dataset_ch_names) - ch_coord.shape[0]):
+                ch_coord = np.append(ch_coord, [[0, 0, 0]], axis=0)
 
         # Salva a posição do eletrodo Nasio para referencia
         nz_pos = coord[np.where([all_ch_names[i] in ['Nz'] for i in range(ch_nums)])[0]].reshape(3)

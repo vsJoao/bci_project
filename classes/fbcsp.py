@@ -1,9 +1,9 @@
 from __future__ import annotations
 import numpy as np
-from utils import csp
 from classes.data_configuration import Epochs
 import os
 import _pickle as pickle
+import scipy.linalg as li
 
 
 class FBCSP:
@@ -36,9 +36,8 @@ class FBCSP:
         Gera um conjunto de caracteristicas de um conjunto de treino
     csp_feature(x)
         Gera um vetor de características do sinal x utilizando o modelo salvo na instância
-
-
     """
+
     def __init__(self, epc1: Epochs, epc2: Epochs, subject_name: str, fs: int, filterbank: dict, m: int = 2):
         """ Cria uma instancia de FBCSP
 
@@ -64,6 +63,7 @@ class FBCSP:
         self.filterbank_dict = filterbank   # Dicionário das freqências utilizadas no banco de filtros
         self.subject_name = subject_name
 
+        # Realiza a criação do objeto apenas se os nomes de sujeito de todas as epocas forem iguais
         assert self.subject_name == epc1.subject_name == epc2.subject_name
         self._fbcsp_calc(epc1, epc2)        # Salva as Matrizes de projeção espacial em self._w
 
@@ -124,7 +124,7 @@ class FBCSP:
         for f_band in self.filterbank_dict.values():
             # Calcula as matrizes de projeção para cada uma das bandas de frequencias
             self._w[f"{f_band[0]}-{f_band[1]}"] = \
-                csp.csp(FBCSP._filt(epc1.data, f_band, self.fs), FBCSP._filt(epc2.data, f_band, self.fs))
+                self.csp(FBCSP._filt(epc1.data, f_band, self.fs), FBCSP._filt(epc2.data, f_band, self.fs))
 
     def fbcsp_feature(self, x: np.ndarray) -> np.ndarray:
         """ Extrai um vetor de características de um sinal multivariado x utilizando os parametros desta instancia
@@ -133,7 +133,7 @@ class FBCSP:
         ----------
         x: np.ndarray
             Um sinal de EEG mutivariado no formato de uma matriz MxN, onde M é o número
-            de canais e N é p número de amostras.
+            de canais e N é o número de amostras.
 
         Returns
         -------
@@ -157,7 +157,7 @@ class FBCSP:
             # Calcula-se a decomposição por CSP do sinal na banda de freq e seleciona as linhas [m_int]
             z = np.dot(
                 self._w[f"{f_band[0]}-{f_band[1]}"],
-                FBCSP._filt(x, f_band, fs=250)
+                FBCSP._filt(x, f_band, fs=self.fs)
             )[m_int, :]
 
             # Calcula-se a variancia dessas linhas e em seguida o seu somatório
@@ -215,3 +215,83 @@ class FBCSP:
         )
 
         return f
+
+    @staticmethod
+    def cov_esp(e):
+        c = np.dot(e, e.transpose())
+        c = c / (np.dot(e, e.transpose()).trace())
+        return c
+
+    @staticmethod
+    def eig_sort(x, cresc=False):
+        value, vector = li.eig(x)
+        value = np.real(value)
+        vector = np.real(vector)
+
+        if cresc is False:
+            idx = np.argsort(value)[::-1]
+        else:
+            idx = np.argsort(value)
+        value = value[idx]
+        value = np.diag(value)
+        vector = vector[:, idx]
+        return [value, vector]
+
+    @staticmethod
+    def csp(X: np.ndarray, Y: np.ndarray):
+        """
+        # calcula-se o csp de um conjunto de ensaios com a matrix x no formato [N, T, E]
+        # sendo N o numero de canais, T o número de amostras e E o número de ensaios
+        """
+        X = np.array(X)
+        Y = np.array(Y)
+
+        # verifica os tamanhos das matrizes X e Y
+        try:
+            nx, tx, ex = X.shape
+        except ValueError:
+            nx, tx = X.shape
+            ex = 1
+
+        try:
+            ny, ty, ey = Y.shape
+        except ValueError:
+            ny, ty = Y.shape
+            ey = 1
+
+        # verifica se os dois arrays possuem a mesma quantidade de canais
+        if ny != nx:
+            return 0
+        else:
+            n = nx
+            del nx, ny
+
+        # Calcula-se a média das matrizes de covariancia espacial para as duas classes
+        Cx = np.zeros([n, n])
+        for i in range(ex):
+            Cx += FBCSP.cov_esp(X[:, :, i])
+
+        Cx = Cx / ex
+
+        Cy = np.zeros([n, n])
+        for i in range(ey):
+            Cy += FBCSP.cov_esp(Y[:, :, i])
+
+        Cy = Cy / ey
+
+        # calculo da variância espacial composta
+        Cc = Cx + Cy
+        Ac, Uc = FBCSP.eig_sort(Cc)
+
+        # matriz de branquemento
+        P = np.dot(np.sqrt(li.inv(Ac)), Uc.transpose())
+
+        # Aplicando a transformação P aos Cx e Cy
+        Sx = P.dot(Cx).dot(P.transpose())
+        # Sy = P.dot(Cy).dot(P.transpose())
+
+        Ax, Ux = FBCSP.eig_sort(Sx, cresc=False)
+
+        w = np.dot(P.transpose(), Ux).transpose()
+
+        return np.real(w)

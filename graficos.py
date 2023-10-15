@@ -5,9 +5,6 @@ import matplotlib.pyplot as plt
 import os
 import mne
 import csv
-from utils.files_io import pick_file
-from configs.database_names import *
-from utils.artifact_remove import *
 
 sns.set(style="ticks")
 
@@ -90,11 +87,77 @@ sns.set(style="ticks")
 
 
 """ Impressão de Sinais """
-data, eve = pick_file(f_loc=raw_fif_folder, sbj="A01T", fnum=1)
-data.plot(events=None, n_channels=25, duration=10, scalings={'eeg': 40, 'eog': 50}, start=32)
-plt.savefig('antes_ica')
-raw_clean, flag = artifact_remove(data.crop(tmin=32, tmax=42), print_all=True)
-raw_clean.plot(events=None, n_channels=22, duration=10, scalings={'eeg': 40})
-plt.savefig('apos_ica')
+# data, eve = pick_file(f_loc=raw_fif_folder, sbj="A01T", fnum=1)
+# data.plot(events=None, n_channels=25, duration=10, scalings={'eeg': 40, 'eog': 50}, start=32)
+# plt.savefig('antes_ica')
+# raw_clean, flag = artifact_remove(data.crop(tmin=32, tmax=42), print_all=True)
+# raw_clean.plot(events=None, n_channels=22, duration=10, scalings={'eeg': 40})
+# plt.savefig('apos_ica')
+# plt.show()
+
+
+"""Impressao de matrizes de confusão"""
+# confusion_df = pd.DataFrame(
+#     np.zeros([len(e_classes), len(e_classes)]),
+#     index=e_classes, columns=e_classes
+# )
+#
+# for i_cnt, i in enumerate(y_prediction_final):
+#     confusion_df.loc[e_dict[y_test[i_cnt]], e_dict[y_prediction_final[i_cnt, 0]]] += 1
+#
+# confusion_df = confusion_df.rename(
+#     columns={"l": "Esquerda", "r": "Direita", "f": "Pés", "t": "Língua"},
+#     index={"l": "Esquerda", "r": "Direita", "f": "Pés", "t": "Língua"}
+# )
+#
+# confusion = confusion_df.to_numpy()
+# pe = np.trace(confusion) / np.sum(confusion)
+# po = np.dot(np.sum(confusion, axis=0), np.sum(confusion, axis=1)) / (np.sum(confusion)**2)
+# kappa = (pe - po) / (1 - po)
+#
+# # confusion_percent = confusion / 72
+# # ax = sns.heatmap(confusion_df, cmap="Blues", annot=confusion_percent, linewidths=1.5)
+# # plt.yticks(va="center")
+# # plt.xticks(va="center")
+# # plt.ylabel("Classe Real")
+# # plt.xlabel("Classe Predita")
+# #
+# # plt.title(f"{sbj_id[1:]}")
+# #
+# # print(f"Taxa de acerto {sbj_id}:", res.mean(), f"kappa: {kappa}")
+# #
+# # ax.get_figure().savefig(f"C:/Users/victo/Desktop/{sbj_id}_confusion.png")
+# # plt.cla()
+# # plt.clf()
+# # plt.close()
+#
+# return res.mean(), kappa
+
+
+"""Gráficos para artigo do pet"""
+from classes.classifications import OneVsOneLinearSVM
+from classes.data_configuration import SubjectTimingConfigs
+from classes.data_configuration import Headset
+import numpy as np
+import seaborn as sns
+
+classifier = OneVsOneLinearSVM.load_from_subjectname("A03")
+features_train = classifier.get_subject_train_features_as_dict()
+classes = [{1: "Mão Esquerda", 2: "Mão Direita", 3: "pe", 4: "Lingua"}[i] for i in features_train['lr'][:, 4]]
+
+features_test = classifier.get_subject_test_features()
+
+test_array = pd.DataFrame(features_test[3]["feature"]["lr"].reshape(1, 4), columns=[1, 2, 3, 4])
+test_array["classes"] = "Vetor de Teste"
+
+df = pd.DataFrame(features_train["lr"][:, 0:4], columns=[1, 2, 3, 4])
+df["classes"] = classes
+
+df = df.append(test_array)
+
+sns.pairplot(df, hue="classes", markers=[".", ".", "D"], palette="bright")
 plt.show()
+
+...
+
 
