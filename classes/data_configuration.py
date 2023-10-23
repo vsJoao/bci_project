@@ -71,7 +71,7 @@ class Epochs:
 
 
 class Headset:
-    def __init__(self, name, ch_names, sfreq):
+    def __init__(self, name, max_signal, ch_names, sfreq):
         """
         Inicialização e criação de uma nova instância de um headset, adotando um nome, um array com os nomes dos canais
         disponíveis nesse headset e a frequência de amostragem.
@@ -83,6 +83,7 @@ class Headset:
         sfreq
         """
         self.name = name
+        self.max_signal = max_signal
         self.ch_names = ch_names
         self.sfreq = sfreq
         self.montage = self._set_montage()
@@ -183,4 +184,4 @@ class SubjectTimingConfigs:
         self.ica_start = ica_start
         self.ica_end = ica_end
         self.time_between = time_between
-        self.epc_size = epc_size or sample_end - sample_start
+        self.epc_size = epc_size or round(sample_end - sample_start, 2)

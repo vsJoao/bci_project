@@ -6,7 +6,7 @@ import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
 
 
-train_epochs = Epochs.dict_from_subject_name("K01", "train")
+train_epochs = Epochs.dict_from_subject_name("A01", "train")
 classes = list(train_epochs.keys())
 
 labels_train = np.array([])
@@ -29,7 +29,7 @@ for cls, epoch in train_epochs.items():
 
 ##########################################################
 
-test_epochs = Epochs.dict_from_subject_name("K01", "test")
+test_epochs = Epochs.dict_from_subject_name("A01", "test")
 classes = list(test_epochs.keys())
 
 labels_test = np.array([])

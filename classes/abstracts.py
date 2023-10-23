@@ -158,7 +158,7 @@ class Subject(ABC):
         new_epc: A amostra extraída de dentro da epoca no formato de uma matriz numpy.
         """
         ch = signal.pick('eeg').info['nchan']
-        n_samp = int((self.time_config.sample_end - self.time_config.sample_start) * signal.info["sfreq"] + 1)
+        n_samp = int(self.time_config.epc_size * signal.info["sfreq"] + 1)
 
         # Realiza a remoção de artefatos
         if apply_ica:
@@ -173,7 +173,7 @@ class Subject(ABC):
 
         return new_epc
 
-    def _generate_epochs_from_recording(self, data_type, recording_id):
+    def _generate_epochs_from_recording(self, data_type, recording_id, print_status=True):
         """
         Função que analisa uma gravação e cria um dicionário com instâncias de épocas (intervalos de interesse) desta
         gravação única, com chaves para cada classe de sinal utilizada neste sujeito.
@@ -194,6 +194,7 @@ class Subject(ABC):
 
         # Esse laço roda cada uma das trials dentro de um arquivo
         for n, i in enumerate(eve[:, 0] / raw.info["sfreq"]):
+            print(f"Salvando Epoca. Gravação: {recording_id}. Epoca: {n}") if print_status else ...
 
             if eve[n, 2] not in self.classes:
                 continue
@@ -201,9 +202,9 @@ class Subject(ABC):
             # Salva a classe de movimento atual
             class_mov = self.classes[eve[n, 2]]
 
-            # Coleta uma amostra de (ica_end - ica_start) segundos para análise
+            # Separa o pedaço completo de uma amostra para análise
             raw_samp = raw.copy().pick('eeg'). \
-                crop(tmin=i+self.time_config.ica_start, tmax=i+self.time_config.ica_end)
+                crop(tmin=i, tmax=i+self.time_config.trial_duration)
 
             # TODO: Aplicar nesse ponto a funcionalidade de extrair mais de uma época por trial
             new_epc = self._get_sample_from_trial(raw_samp, apply_ica=False)
@@ -262,28 +263,89 @@ class Subject(ABC):
         return FBCSP.dict_from_subject_name(self.foldername, set_type)
 
 
-class OneVsOneFBCSP(ABC):
+class Classifier(ABC):
+    def __init__(self, subject: Subject):
+        self.subject = subject
+        self.folderpath = os.path.join(
+            "subject_files", subject.foldername, "classifiers", self.classifier_foldername
+        )
+
+        self.classifier_models = False
+        self._fit_classifier_models()
+        assert self.classifier_models
+
+    def save_classifier(self):
+        """
+        Salva a instancia atual com as configurações atuais na sua pasta de acordo com o sujeito e o método utilizado
+        """
+        os.makedirs(self.folderpath, exist_ok=True)
+        with open(os.path.join(self.folderpath, self.classifier_method_name + ".pkl"), "wb") as file:
+            pickle.dump(self, file)
+
+    def _fit_classifier_models(self):
+        self._set_classsifiers()
+        assert self.classifier_models
+
+    def run_testing_classifier(self):
+        epochs = self.subject.get_epochs_as_dict("test")
+        classes_dict = self.subject.classes
+        classes_dict_inv = {i: j for j, i in classes_dict.items()}
+
+        prediction_list = list()
+        real_list = list()
+
+        for clas, epoch in epochs.items():
+            for i in range(epoch.n_trials):
+                data = epoch.data[:, :, i]
+                prediction = self.predict(data)
+                prediction_list.append(prediction)
+                real_list.append(classes_dict_inv[clas])
+
+        compare = [real_list[i] == prediction_list[i] for i, j in enumerate(real_list)]
+        hit_rate = np.mean(compare)
+
+        return {
+            "hit_rate": hit_rate,
+            "real_classes": real_list,
+            "predicted_classes": prediction_list
+        }
+
+    @abstractmethod
+    def _set_classsifiers(self):
+        """
+        Método responsável por gerar e treinar o modelo classificador e salvar ele dentro da propriedade
+        self.classifier_models
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def classifier_foldername(self) -> str: pass
+
+    @property
+    @abstractmethod
+    def classifier_method_name(self) -> str:
+        pass
+
+    @abstractmethod
+    def predict(self, signal: np.ndarray):
+        """
+        Recebe um sinal [MxN] onde M é a quantidade de canais e N é a quantidade de amostras coletadas
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def load_from_subjectname(cls, sbj_name): pass
+
+
+class OneVsOneFBCSP(Classifier, ABC):
     """
     Uma abstração para modelos de classificadores que funcionem utilizando o padrão 1 vs 1, comparando todas as combina-
     ções possíveis de classes, mas que pode utilizar diferentes metodologias para a separação dos vetores, como svm,
     deep learning, multi-layer perceptron, random-forest, KNN...
     Ainda é preciso criar novos métodos
     """
-    def __init__(self, subject: Subject):
-        self.subject = subject
-        self.classifier_models = dict()
-        self.folderpath = os.path.join("subject_files", subject.foldername, "classifiers", "one_vs_one")
-
-        self._fit_classifier_models()
-
-    def _fit_classifier_models(self):
-        self.generate_fbcsp()
-        self.generate_subject_train_features()
-        self.generate_subject_test_features()
-
-        train_features = self.get_subject_train_features_as_dict()
-        self._set_classsifiers(train_features)
-        assert self.classifier_models
 
     def save_classifier(self):
         """
@@ -384,72 +446,37 @@ class OneVsOneFBCSP(ABC):
 
         return f
 
-    def generate_subject_test_features(self):
-        # Dicionário contendo objetos de todas Epocas desde sujeito
-        epc_dict = self.subject.get_epochs_as_dict("test")
-        # Carrega o caminho onde ficarão salvos os vetores de características
-        path = os.path.join("subject_files", self.subject.foldername, "features_test", "one_vs_one")
-        # Pré aloca a lista de características que serão geradas
-        test_features = list()
+    @abstractmethod
+    def predict(self, signal: np.ndarray): pass
 
-        for clas, epc in epc_dict.items():
-            for i in range(epc.n_trials):
-                f_temp = self.generate_set_of_features_for_signal(epc.data[:, :, i])
-                test_features.append({"feature": f_temp, "class": clas})
-
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        np.save(os.path.join(path, "test_features.npy"), test_features)
-
-    def get_subject_test_features(self):
-        path = os.path.join("subject_files", self.subject.foldername, "features_test", "one_vs_one")
-        features = np.load(os.path.join(path, "test_features.npy"), allow_pickle=True)
-        return features
+    @property
+    def classifier_foldername(self) -> str:
+        return "one_vs_one"
 
     @abstractmethod
-    def predict_feature(self, feature_dict: dict):
-        """
-
-        """
-        pass
-
-    @abstractmethod
-    def _set_classsifiers(self, train_features): pass
+    def _set_classsifiers(self): pass
 
     @classmethod
     @abstractmethod
     def load_from_subjectname(cls, sbj_name): pass
-
-    @abstractmethod
-    def run_testing_classifier(self): pass
 
     @property
     @abstractmethod
     def classifier_method_name(self) -> str: pass
 
 
-class OneVsAllFBCSP(ABC):
+class OneVsAllFBCSP(Classifier, ABC):
     """
     Uma abstração para modelos de classificadores que funcionem utilizando o padrão 1 vs todos, submetendo um sinal
     desconhecido a classificadores consecutivos que decidirão se ele pertence ou não a determinada classe
     """
     def __init__(self, subject: Subject):
-        self.subject = subject
-        # modelos classificadores que irão classificar os sinais em duas possíveis classes
-        self.classifier_models = dict()
-        self.folderpath = os.path.join("subject_files", subject.foldername, "classifiers", "one_vs_all")
         self.classification_order = list(subject.classes.values())
+        super().__init__(subject)
 
-        self._fit_classifier_models()
-
-    def _fit_classifier_models(self):
-        self.generate_fbcsp()
-        self.generate_subject_train_features()
-
-        train_features = self.get_subject_train_features_as_dict()
-        self._set_classsifiers(train_features)
-        assert self.classifier_models
+    @property
+    def classifier_foldername(self) -> str:
+        return "one_vs_all"
 
     def save_classifier(self):
         """
@@ -545,17 +572,14 @@ class OneVsAllFBCSP(ABC):
         return f
 
     @abstractmethod
-    def predict_feature(self, signal: np.ndarray): pass
+    def predict(self, signal: np.ndarray): pass
 
     @abstractmethod
-    def _set_classsifiers(self, train_features): pass
+    def _set_classsifiers(self): pass
 
     @classmethod
     @abstractmethod
     def load_from_subjectname(cls, sbj_name): pass
-
-    @abstractmethod
-    def run_testing_classifier(self): pass
 
     @property
     @abstractmethod

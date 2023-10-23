@@ -1,5 +1,5 @@
 from classes.subjects import *
-from classes.classifications import OneVsOneLinearSVM, OneVsAllLinearSVM
+from classes.classifications import OneVsOneLinearSVM, OneVsAllLinearSVM, ConvolutionalClassifier
 from classes.data_configuration import SubjectTimingConfigs
 from classes.data_configuration import Headset
 
@@ -21,7 +21,7 @@ sbjs = {
 
 # Criação do objeto de temporização do sinal
 timing_configs = SubjectTimingConfigs(
-    trial_duration=0.8, sample_start=0.1, sample_end=0.9, ica_start=0, ica_end=1, epc_size=None, time_between=None
+    trial_duration=1, sample_start=0.1, sample_end=0.9, ica_start=0, ica_end=1, epc_size=None, time_between=None
 )
 
 # Canais que são utilizados no dataset
@@ -42,7 +42,7 @@ classes = {
 }
 
 # Criação do objeto do headset que foi feita a gravação
-headset = Headset(ch_names=ch_names, sfreq=200, name="kaya_ds_headset")
+headset = Headset(ch_names=ch_names, sfreq=200, name="kaya_ds_headset", max_signal=100)
 headset.save_headset()
 
 for sb in sbjs:
@@ -53,6 +53,8 @@ for sb in sbjs:
 
     print(f"Carregando o sujeito {sb}")
     sbj = Subject.load_from_foldername(sb)
+    print("Carregando Modelo Classificador")
+    classifier = OneVsOneLinearSVM.load_from_subjectname(sb)
 
     # print("Criando o classificador")
     # classifier = OneVsOneLinearSVM(sbj)
@@ -60,10 +62,10 @@ for sb in sbjs:
     # classifier.save_classifier()
 
     # Carregando o classificador
-    classifier = OneVsOneLinearSVM.load_from_subjectname(sb)
+    # classifier = ConvolutionalClassifier(sbj)
+    # classifier.save_classifier()
 
     print("Realizando testes sobre o classificador criado")
     res = classifier.run_testing_classifier()
-
     print(res)
 
