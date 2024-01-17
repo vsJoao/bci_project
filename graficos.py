@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import mne
 import csv
+from itertools import combinations
 
 sns.set(style="ticks")
 
@@ -15,7 +16,7 @@ sns.set(style="ticks")
 #
 # lista = ['lr', 'lf', 'lt', 'rf', 'rt', 'ft']
 # plt.figure(1)
-
+#
 # for n, pair in enumerate(lista):
 #     features_df = pd.DataFrame(features[pair])
 #
@@ -27,7 +28,8 @@ sns.set(style="ticks")
 #     )
 #     ax._legend.remove()
 #
-#     ax.savefig(f"C:/Users/victo/Desktop/{pair}_figure.png")
+#     os.makedirs(f"C:/Users/victo/Desktop/pairplots/A01_{pair}", exist_ok=True)
+#     ax.savefig(f"C:/Users/victo/Desktop/A01_{pair}_figure.png")
 
 
 """ Gráfico de Barras """
@@ -97,13 +99,28 @@ sns.set(style="ticks")
 
 
 """Impressao de matrizes de confusão"""
+
+# sbj_id = "A02"
+#
+# e_classes = ["l", "r", "f", "t"]
+# e_dict = {1:"l", 2: "r", 3: "f", 4: "t"}
+#
+# y_test = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+#
+# y_prediction_final = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 3, 2, 2, 3, 4, 3, 3, 3, 3, 3, 3, 3, 2, 4, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 4, 3, 3, 3, 4, 3, 3, 4, 3, 3, 3, 2, 2, 2, 2, 1, 3, 2, 2, 2, 2, 1, 4, 2, 2, 2, 2, 4, 2, 4, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 4, 2, 4, 3, 4, 2, 4, 1, 3, 2, 4, 4, 2, 2, 2, 2, 4, 2, 2, 4, 2, 3, 2, 1, 2, 2, 2, 2, 2, 2, 4, 4, 2, 3, 4, 4, 3, 4, 2, 3, 4, 2, 2, 4, 3, 4, 2, 1, 2, 2, 3, 4, 2, 2, 2, 2, 2, 4, 2, 3, 2, 2, 3, 2, 2, 2, 2, 2, 3, 4, 4, 2, 1, 3, 1, 3, 4, 2, 4, 2, 2, 2, 2, 4, 2, 4, 3, 3, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 4, 4, 2, 2, 2, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4, 3, 2, 2, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 3, 2, 2, 2, 3, 3, 4, 2, 4, 4, 2, 2, 4, 2, 4, 4, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 2, 4, 3, 4, 4, 4, 2, 4, 2, 4, 3, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4, 2, 4]
+#
+# y_test = np.array(y_test)
+# y_prediction_final = np.array(y_prediction_final)
+#
+# res = y_test == y_prediction_final
+#
 # confusion_df = pd.DataFrame(
 #     np.zeros([len(e_classes), len(e_classes)]),
 #     index=e_classes, columns=e_classes
 # )
 #
 # for i_cnt, i in enumerate(y_prediction_final):
-#     confusion_df.loc[e_dict[y_test[i_cnt]], e_dict[y_prediction_final[i_cnt, 0]]] += 1
+#     confusion_df.loc[e_dict[y_test[i_cnt]], e_dict[y_prediction_final[i_cnt]]] += 1
 #
 # confusion_df = confusion_df.rename(
 #     columns={"l": "Esquerda", "r": "Direita", "f": "Pés", "t": "Língua"},
@@ -115,22 +132,22 @@ sns.set(style="ticks")
 # po = np.dot(np.sum(confusion, axis=0), np.sum(confusion, axis=1)) / (np.sum(confusion)**2)
 # kappa = (pe - po) / (1 - po)
 #
-# # confusion_percent = confusion / 72
-# # ax = sns.heatmap(confusion_df, cmap="Blues", annot=confusion_percent, linewidths=1.5)
-# # plt.yticks(va="center")
-# # plt.xticks(va="center")
-# # plt.ylabel("Classe Real")
-# # plt.xlabel("Classe Predita")
-# #
-# # plt.title(f"{sbj_id[1:]}")
-# #
-# # print(f"Taxa de acerto {sbj_id}:", res.mean(), f"kappa: {kappa}")
-# #
-# # ax.get_figure().savefig(f"C:/Users/victo/Desktop/{sbj_id}_confusion.png")
-# # plt.cla()
-# # plt.clf()
-# # plt.close()
+# confusion_percent = confusion / 72
+# ax = sns.heatmap(confusion_df, cmap="Blues", annot=confusion_percent, linewidths=1.5)
+# plt.yticks(va="center")
+# plt.xticks(va="center")
+# plt.ylabel("Classe Real")
+# plt.xlabel("Classe Predita")
 #
+# plt.title(f"{sbj_id[1:]}")
+#
+# print(f"Taxa de acerto {sbj_id}:", res.mean(), f"kappa: {kappa}")
+#
+# ax.get_figure().savefig(f"C:/Users/victo/Desktop/{sbj_id}_confusion.png")
+# plt.cla()
+# plt.clf()
+# plt.close()
+
 # return res.mean(), kappa
 
 
@@ -141,22 +158,77 @@ from classes.data_configuration import Headset
 import numpy as np
 import seaborn as sns
 
-classifier = OneVsOneLinearSVM.load_from_subjectname("A03")
+sbj = "A01"
+classifier = OneVsOneLinearSVM.load_from_subjectname(sbj)
 features_train = classifier.get_subject_train_features_as_dict()
-classes = [{1: "Mão Esquerda", 2: "Mão Direita", 3: "pe", 4: "Lingua"}[i] for i in features_train['lr'][:, 4]]
+################################################################################################
+# classes_dict = {
+#     1: 'lh',    # left hand
+#     2: 'rh',    # right hand
+#     3: 'n',     # neutral
+#     4: 'll',    # left leg
+#     5: 't',     # tongue
+#     6: 'rl',    # right leg
+#     # 91: 'b',    # beginning
+#     # 92: 'e',    # experiment end
+#     # 99: 'r'     # inicial relaxing
+# }
+# classes_names = {
+#     1: 'Mão Esquerda',    # left hand
+#     2: 'Mão Direita',    # right hand
+#     3: 'Relaxamento',     # neutral
+#     4: 'Pé Esquerdo',    # left leg
+#     5: 'Língua',     # tongue
+#     6: 'Pé Direito',    # right leg
+#     # 91: 'b',    # beginning
+#     # 92: 'e',    # experiment end
+#     # 99: 'r'     # inicial relaxing
+# }
+# paleta = {
+#     "Mão Direita": "#1f77b4",
+#     "Mão Esquerda": "#ff7f0e",
+#     "Relaxamento": "#2ca02c",
+#     "Pé Esquerdo": "#d62728",
+#     "Língua": "#9467bd",
+#     "Pé Direito": "#8c564b"
+# }
+################################################################################################
+classes_dict = {
+    1: 'l',    # left hand
+    2: 'r',    # right hand
+    3: 'f',     # neutral
+    4: 't',    # left leg
+}
+classes_names = {
+    1: 'Mão Esquerda',    # left hand
+    2: 'Mão Direita',    # right hand
+    3: 'Pés',     # neutral
+    4: 'Língua',    # left leg
+}
+paleta = {
+    "Mão Direita": "#1f77b4",
+    "Mão Esquerda": "#ff7f0e",
+    "Pés": "#2ca02c",
+    "Língua": "#d62728",
+}
 
-features_test = classifier.get_subject_test_features()
+n = 1
 
-test_array = pd.DataFrame(features_test[3]["feature"]["lr"].reshape(1, 4), columns=[1, 2, 3, 4])
-test_array["classes"] = "Vetor de Teste"
+for i, j in combinations(classes_dict.values(), 2):
+    features_df = pd.DataFrame(features_train[f"{i}{j}"])
 
-df = pd.DataFrame(features_train["lr"][:, 0:4], columns=[1, 2, 3, 4])
-df["classes"] = classes
+    features_df[24] = features_df[24].map(classes_names)
+    features_df = features_df.rename(columns={24: "Classes"})
+    ax = sns.pairplot(
+        features_df[[0, 1, 2, 3, "Classes"]], hue="Classes",
+        palette=paleta
+    )
+    # ax._legend.remove()
 
-df = df.append(test_array)
+    os.makedirs(f"C:/Users/victo/Desktop/pairplots/{sbj}", exist_ok=True)
+    ax.savefig(f"C:/Users/victo/Desktop/pairplots/{sbj}/{sbj}_{i}{j}_figure.png")
 
-sns.pairplot(df, hue="classes", markers=[".", ".", "D"], palette="bright")
-plt.show()
+
 
 ...
 

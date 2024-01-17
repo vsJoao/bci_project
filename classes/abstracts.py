@@ -3,6 +3,7 @@ import os
 import pickle as pickle
 from abc import ABC, abstractmethod
 from itertools import combinations
+from classes.fbcsp import FBCSP
 
 import mne
 import numpy as np
@@ -254,14 +255,6 @@ class Subject(ABC):
             for clas, epc in epc_dict.items():
                 epc.save_epoch()
 
-    def get_fbcsp_dict(self, set_type) -> dict:
-        """
-        Retorna um dicionário de objetos FBCSP, sendo um item para cada combinação de classes e de matrizes de projeção
-        espacial.
-        """
-        from classes.fbcsp import FBCSP
-        return FBCSP.dict_from_subject_name(self.foldername, set_type)
-
 
 class Classifier(ABC):
     def __init__(self, subject: Subject):
@@ -394,8 +387,13 @@ class OneVsOneFBCSP(Classifier, ABC):
         da sua respectiva pasta.
         """
         classes_names = list(self.subject.classes.values())
-        w_fbcsp = self.subject.get_fbcsp_dict("one_vs_one")  # Dicionário de objetos FBCSP para cada duas classes
-        epc_dict = self.subject.get_epochs_as_dict("train")  # Bloco de dados de treino deste sujeito
+
+        # Dicionário de objetos FBCSP para cada duas classes
+        w_fbcsp = FBCSP.dict_from_subject_name(self.subject.foldername, "one_vs_one")
+
+        # Bloco de dados de treino deste sujeito
+        epc_dict = self.subject.get_epochs_as_dict("train")
+
         path = os.path.join("subject_files", self.subject.foldername, "features_train", "one_vs_one")
 
         for i, j in combinations(classes_names, 2):
@@ -437,7 +435,7 @@ class OneVsOneFBCSP(Classifier, ABC):
         f: dicionário com um vetor de características para cada combinação possível de separação de classes.
         """
         # Carrega um dicionário contrendo todos os objetos FBCSP para este usuário
-        w_fbcsp = self.subject.get_fbcsp_dict("one_vs_one")
+        w_fbcsp = FBCSP.dict_from_subject_name(self.subject.foldername, "one_vs_one")
         f = dict()
 
         for clas, w in w_fbcsp.items():
@@ -533,7 +531,8 @@ class OneVsAllFBCSP(Classifier, ABC):
         import copy
 
         classes_names = self.classification_order
-        w_fbcsp = self.subject.get_fbcsp_dict("one_vs_all")  # Dicionário de objetos FBCSP para cada duas classes
+        # Dicionário de objetos FBCSP para cada duas classes
+        w_fbcsp = FBCSP.dict_from_subject_name(self.subject.foldername, "one_vs_all")
         path = os.path.join("subject_files", self.subject.foldername, "features_train", "one_vs_all")
         epochs = self.subject.get_epochs_as_dict("train")
 

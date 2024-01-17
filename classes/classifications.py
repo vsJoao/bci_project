@@ -7,7 +7,9 @@ from sklearn import svm
 import numpy as np
 from scipy.stats import mode
 import tensorflow as tf
+from keras.models import load_model as keras_load_model
 from tensorflow.keras import datasets, layers, models
+from classes.fbcsp import FBCSP
 
 
 class OneVsOneLinearSVM(OneVsOneFBCSP):
@@ -83,7 +85,7 @@ class OneVsAllLinearSVM(OneVsAllFBCSP):
         classes = self.classification_order
         classes_dict = self.subject.classes
         classes_inv = {i: j for j, i in classes_dict.items()}
-        w_fbcsp = self.subject.get_fbcsp_dict("one_vs_all")
+        w_fbcsp = FBCSP.dict_from_subject_name(self.subject.foldername, "one_vs_all")
 
         for index, clas in enumerate(classes[:-1]):
             next_clas = classes[index+1]
@@ -103,6 +105,11 @@ class OneVsAllLinearSVM(OneVsAllFBCSP):
 
 
 class ConvolutionalClassifier(Classifier):
+    def __init__(self, subject, dropout_rate=0.4, epoch_training=50):
+        self.dropout_rate = dropout_rate
+        self.epoch_training = epoch_training
+        super().__init__(subject)
+
     def _set_classsifiers(self):
         train_epochs = self.subject.get_epochs_as_dict("train")
         classes = self.subject.classes
@@ -155,29 +162,39 @@ class ConvolutionalClassifier(Classifier):
         labels_train = np.array([classes_dict[i] for i in labels_train]) - 1
         labels_test = np.array([classes_dict[i] for i in labels_test]) - 1
 
+        from scipy import signal
+
+        sos = signal.iirfilter(
+            N=6, Wn=[1, 40], rs=20, btype='bandpass',
+            output='sos', fs=self.subject.headset.sfreq, ftype='cheby2'
+        )
+
+        data_train = signal.sosfilt(sos, data_train, axis=2)
+        data_test = signal.sosfilt(sos, data_test, axis=2)
+
         model = models.Sequential([
             layers.InputLayer(input_shape=(data_train.shape[1], data_train.shape[2], 1)),
-            layers.Conv2D(25, (1, 6), padding='same', activation='relu'),
-            layers.Conv2D(25, (1, 6), padding='same', activation='relu'),
+            layers.Conv2D(25, (1, 6), padding='same', activation='selu'),
+            layers.Conv2D(25, (1, 6), padding='same', activation='selu'),
             layers.BatchNormalization(),
             layers.Activation(tf.nn.selu),
             layers.AveragePooling2D((1, 3), (1, 2)),
-            layers.Dropout(0.4),
-            layers.Conv2D(50, (1, 6), padding='same', activation='relu'),
+            layers.Dropout(self.dropout_rate),
+            layers.Conv2D(50, (1, 6), padding='same', activation='selu'),
             layers.BatchNormalization(),
             layers.Activation(tf.nn.selu),
             layers.AveragePooling2D((1, 3), (1, 2)),
-            layers.Dropout(0.4),
-            layers.Conv2D(100, (1, 6), padding='same', activation='relu'),
+            layers.Dropout(self.dropout_rate),
+            layers.Conv2D(100, (1, 6), padding='same', activation='selu'),
             layers.BatchNormalization(),
             layers.Activation(tf.nn.selu),
             layers.AveragePooling2D((1, 3), (1, 2)),
-            layers.Dropout(0.4),
-            layers.Conv2D(200, (1, 6), padding='same', activation='relu'),
+            layers.Dropout(self.dropout_rate),
+            layers.Conv2D(200, (1, 6), padding='same', activation='selu'),
             layers.BatchNormalization(),
             layers.Activation(tf.nn.selu),
             layers.AveragePooling2D((1, 3), (1, 2)),
-            layers.Dropout(0.4),
+            layers.Dropout(self.dropout_rate),
             layers.Flatten(),
             layers.Dense(len(classes)),
             layers.Activation(tf.nn.softmax),
@@ -194,8 +211,8 @@ class ConvolutionalClassifier(Classifier):
 
         max_signal = self.subject.headset.max_signal
 
-        history = model.fit(
-            data_train, labels_train, epochs=50,
+        self.history = model.fit(
+            data_train, labels_train, epochs=self.epoch_training,
             validation_data=(data_test, labels_test)
         )
 
@@ -210,12 +227,35 @@ class ConvolutionalClassifier(Classifier):
         return "ConvolutionalClassifier"
 
     def predict(self, signal: np.ndarray):
-        pass
+
+        signal = signal.reshape([1, signal.shape[0], signal.shape[1], 1])
+
+        output = self.classifier_models.predict(signal, verbose=0)
+        prediction = output[0].argmax() + 1
+
+        return prediction
 
     @classmethod
     def load_from_subjectname(cls, sbj_name):
-        file_path = os.path.join(
-            "subject_files", sbj_name, "classifiers", "ConvolutionalClassifier", "ConvolutionalClassifier.pkl")
-        with open(file_path, "rb") as file:
+        folderpath = os.path.join(
+            "subject_files", sbj_name, "classifiers", "ConvolutionalClassifier")
+
+        with open(os.path.join(folderpath, "ConvolutionalClassifier.pkl"), "rb") as file:
             classifier = pickle.load(file)
+
+        model = keras_load_model(os.path.join(folderpath, "model.keras"))
+        classifier.classifier_models = model
+
         return classifier
+
+    def save_classifier(self):
+        """
+        Salva a instancia atual com as configurações atuais na sua pasta de acordo com o sujeito e o método utilizado
+        """
+        os.makedirs(self.folderpath, exist_ok=True)
+
+        self.classifier_models.save(os.path.join(self.folderpath, "model.keras"))
+        del self.classifier_models
+
+        with open(os.path.join(self.folderpath, self.classifier_method_name + ".pkl"), "wb") as file:
+            pickle.dump(self, file)
